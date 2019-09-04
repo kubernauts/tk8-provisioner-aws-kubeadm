@@ -1,67 +1,120 @@
 package cluster
 
 import (
-	"log"
-
 	"github.com/kubernauts/tk8/pkg/common"
-	"github.com/spf13/viper"
+	"gopkg.in/yaml.v2"
+	"io/ioutil"
+	"log"
+	"strings"
 )
 
+type additionalTags map[string]string
 type AWSKubeadmConfig struct {
-	AWSRegion          string
-	ClusterName        string
-	MasterInstanceType string
-	WorkerInstanceType string
-	SSHPublicKey       string
-	MasterSubnetID     string
-	WorkerSubnetIDS    []string
-	MinWorkerCount     int
-	MaxWorkerCount     int
-	HostedZone         string
-	HostedZonePrivate  bool
-	Tags               []string
-	Tags2              []string
-	SSHAccessCIDR      []string
-	APIAccessCIDR      []string
-	Addons             []string
+	Config `yaml:"aws-kubeadm"`
+}
+type Config struct {
+	AWSRegion                   string            `yaml:"aws_region"`
+	ClusterName                 string            `yaml:"cluster_name"`
+	MasterInstanceType          string            `yaml:"master_instance_type"`
+	WorkerInstanceType          string            `yaml:"worker_instance_type"`
+	SSHPublicKey                string            `yaml:"ssh_public_key"`
+	MasterSubnetID              string            `yaml:"master_subnet_id"`
+	WorkerSubnetIDS             []string          `yaml:"worker_subnet_ids"`
+	MinWorkerCount              int               `yaml:"min_worker_count"`
+	MaxWorkerCount              int               `yaml:"max_worker_count"`
+	HostedZone                  string            `yaml:"hosted_zone"`
+	HostedZonePrivate           bool              `yaml:"hosted_zone_private"`
+	Tags                        map[string]string `yaml:"tags"`
+	Tags2                       []additionalTags  `yaml:"tags2"`
+	SSHAccessCIDR               []string          `yaml:"ssh_access_cidr"`
+	APIAccessCIDR               []string          `yaml:"api_access_cidr"`
+	Addons                      []string          `yaml:"addons"`
+	TagsInStringForm            string
+	APIAccessCIDRInStringForm   string
+	AddonsInStringForm          string
+	WorkerSubnetIDSInStringForm string
+	SSHAccessCIDRInStringForm   string
+	Tags2InStringForm           string
 }
 
 func SetClusterName() {
 	if len(common.Name) < 1 {
 		config := GetConfig()
-		common.Name = config.ClusterName
+		common.Name = config.Config.ClusterName
 	}
 }
 
-// ReadViperConfigFile is define the config paths and read the configuration file.
-func ReadViperConfigFile(configName string) {
-	viper.SetConfigName(configName)
-	viper.AddConfigPath(".")
-	viper.AddConfigPath("/tk8")
-	verr := viper.ReadInConfig() // Find and read the config file.
-	if verr != nil {             // Handle errors reading the config file.
-		log.Fatalln(verr)
+func GetConfig() *AWSKubeadmConfig {
+
+	awskubeadm := &AWSKubeadmConfig{}
+	yamlFile, err := ioutil.ReadFile("config.yaml")
+	if err != nil {
+		log.Printf("yamlFile.Get err   #%v ", err)
 	}
+	err = yaml.Unmarshal(yamlFile, awskubeadm)
+	if err != nil {
+		log.Printf("marshal err   #%v ", err)
+	}
+
+	awskubeadm.TagsInStringForm = convertTagsToString(awskubeadm.Config.Tags)
+	awskubeadm.Tags2InStringForm = convertTags2ToString(awskubeadm.Config.Tags2)
+	awskubeadm.AddonsInStringForm = converListToString(awskubeadm.Config.Addons)
+	awskubeadm.SSHAccessCIDRInStringForm = converListToString(awskubeadm.Config.SSHAccessCIDR)
+	awskubeadm.APIAccessCIDRInStringForm = converListToString(awskubeadm.Config.APIAccessCIDR)
+	awskubeadm.WorkerSubnetIDSInStringForm = converListToString(awskubeadm.Config.WorkerSubnetIDS)
+
+	log.Println("Config is ----\n ", awskubeadm.Config.Tags2InStringForm)
+
+	return awskubeadm
 }
 
-func GetConfig() AWSKubeadmConfig {
-	ReadViperConfigFile("config")
-	return AWSKubeadmConfig{
-		AWSRegion:          viper.GetString("aws-kubeadm.aws_region"),
-		ClusterName:        viper.GetString("aws-kubeadm.cluster_name"),
-		MasterInstanceType: viper.GetString("aws-kubeadm.master_instance_type"),
-		WorkerInstanceType: viper.GetString("aws-kubeadm.worker_instance_type"),
-		SSHPublicKey:       viper.GetString("aws-kubeadm.ssh_public_key"),
-		MasterSubnetID:     viper.GetString("aws-kubeadm.master_subnet_id"),
-		WorkerSubnetIDS:    viper.GetStringSlice("aws-kubeadm.woker_subnet_ids"),
-		MinWorkerCount:     viper.GetInt("aws-kubeadm.min_worker_count"),
-		MaxWorkerCount:     viper.GetInt("aws-kubeadm.max_worker_count"),
-		HostedZone:         viper.GetString("aws-kubeadm.hosted_zone"),
-		HostedZonePrivate:  viper.GetBool("aws-kubeadm.hosted_private_zone"),
-		Tags:               viper.GetStringSlice("aws-kubeadm.tags"),
-		Tags2:              viper.GetStringSlice("aws-kubeadm.tags2"),
-		SSHAccessCIDR:      viper.GetStringSlice("aws-kubeadm.ssh_access_cidr"),
-		APIAccessCIDR:      viper.GetStringSlice("aws-kubeadm.api_access_cidr"),
-		Addons:             viper.GetStringSlice("aws-kubeadm.addons"),
+func convertTagsToString(m map[string]string) string {
+	var str strings.Builder
+	str.WriteString("{")
+	for key, value := range m {
+		str.WriteString(key)
+		str.WriteString("=")
+		str.WriteString("\"" + value + "\"")
+		str.WriteString("\n")
+		//	str.WriteString("\n")
 	}
+	str.WriteString("}")
+
+	return str.String()
+}
+
+func convertTags2ToString(listMapOfTag2 []additionalTags) string {
+	var str strings.Builder
+	str.WriteString("[")
+	for i, m := range listMapOfTag2 {
+		str.WriteString("\n{")
+		index := 0
+		for key, value := range m {
+			str.WriteString(key + "= ")
+			str.WriteString("\"" + value + "\"")
+			if index != len(m)-1 {
+				str.WriteString(",")
+			}
+			index++
+		}
+		str.WriteString("}")
+		if i != len(listMapOfTag2)-1 {
+			str.WriteString(",")
+		}
+	}
+	str.WriteString("]")
+	return str.String()
+}
+
+func converListToString(input []string) string {
+	var str strings.Builder
+	str.WriteString("[")
+	for i, s := range input {
+		str.WriteString("\"" + s + "\"")
+		if i != len(input)-1 {
+			str.WriteString("\n")
+		}
+	}
+	str.WriteString("]")
+	return str.String()
 }
