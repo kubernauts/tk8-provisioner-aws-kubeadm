@@ -48,6 +48,60 @@ func Install() {
 	os.Exit(0)
 }
 
+func Upgrade() {
+	if _, err := os.Stat("./inventory/" + common.Name + "/provisioner/terraform.tfstate"); err == nil {
+		if os.IsNotExist(err) {
+			log.Fatal("No terraform.tfstate file found. Upgrade can only be done on an existing cluster.")
+		}
+	}
+
+	kubeadmAWSPrepareConfigFiles(common.Name)
+
+	log.Printf("Starting Upgrade of the cluster :: %s", common.Name)
+	cmd := exec.Command("terraform", "apply", "-auto-approve")
+	cmd.Dir = "./inventory/" + common.Name + "/provisioner/"
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		log.Fatal(err)
+	}
+	scanner := bufio.NewScanner(stdout)
+	go func() {
+		for scanner.Scan() {
+			log.Println(scanner.Text())
+		}
+	}()
+	if err := cmd.Start(); err != nil {
+		log.Fatal(err)
+	}
+	if err := cmd.Wait(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func Remove() {
+
+	log.Printf("Starting to remove the cluster :: %s", common.Name)
+	cmd := exec.Command("terraform", "destroy", "-auto-approve")
+	cmd.Dir = "./inventory/" + common.Name + "/provisioner/"
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		log.Fatal(err)
+	}
+	scanner := bufio.NewScanner(stdout)
+	go func() {
+		for scanner.Scan() {
+			log.Println(scanner.Text())
+		}
+	}()
+	if err := cmd.Start(); err != nil {
+		log.Fatal(err)
+	}
+	if err := cmd.Wait(); err != nil {
+		log.Fatal(err)
+	}
+
+}
+
 func kubeadmAWSPrepareConfigFiles(name string) {
 	templates.ParseTemplate(templates.VariablesKubeadmAWS, "./inventory/"+common.Name+"/provisioner/variables.tf", GetConfig())
 }

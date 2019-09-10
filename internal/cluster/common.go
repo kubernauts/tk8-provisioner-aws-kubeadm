@@ -63,8 +63,6 @@ func GetConfig() *AWSKubeadmConfig {
 	awskubeadm.APIAccessCIDRInStringForm = converListToString(awskubeadm.Config.APIAccessCIDR)
 	awskubeadm.WorkerSubnetIDSInStringForm = converListToString(awskubeadm.Config.WorkerSubnetIDS)
 
-	log.Println("Config is ----\n ", awskubeadm.Config.Tags2InStringForm)
-
 	return awskubeadm
 }
 

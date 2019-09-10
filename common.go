@@ -53,12 +53,12 @@ func (a AWSKubeadm) Reset(args []string) {
 }
 
 func (a AWSKubeadm) Remove(args []string) {
-	//	cluster.AWSRemove()
+	cluster.Remove()
 
 }
 
 func (a AWSKubeadm) Upgrade(args []string) {
-	provisioner.NotImplemented()
+	cluster.Upgrade()
 }
 
 func (a AWSKubeadm) Destroy(args []string) {
